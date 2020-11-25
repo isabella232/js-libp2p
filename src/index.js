@@ -32,6 +32,7 @@ const {
   IdentifyService,
   multicodecs: IDENTIFY_PROTOCOLS
 } = require('./identify')
+const NatManager = require('./nat-manager')
 
 /**
  * @fires Libp2p#error Emitted when an error occurs
@@ -109,6 +110,14 @@ class Libp2p extends EventEmitter {
       libp2p: this,
       upgrader: this.upgrader,
       faultTolerance: this._options.transportManager.faultTolerance
+    })
+
+    // Create the Nat Manager
+    this.natManager = new NatManager({
+      peerId: this.peerId,
+      addressManager: this.addressManager,
+      transportManager: this.transportManager,
+      ...this._options.config.nat
     })
 
     // Create the Registrar
@@ -265,6 +274,7 @@ class Libp2p extends EventEmitter {
         this.metrics && this.metrics.stop()
       ])
 
+      await this.natManager.stop()
       await this.transportManager.close()
 
       ping.unmount(this)
@@ -458,6 +468,9 @@ class Libp2p extends EventEmitter {
   async _onStarting () {
     // Listen on the provided transports
     await this.transportManager.listen()
+
+    // Manage your NATs
+    this.natManager.start()
 
     // Start PeerStore
     await this.peerStore.start()
